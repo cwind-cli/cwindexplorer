@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          ldflags="-s -w -X github.com/cwind-cli/cwind/internal/version.Value=${version}"
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="$ldflags" \
+            -o "dist/cwind_${version}_windows_amd64.exe" .
+          GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="$ldflags" \
+            -o "dist/cwind_${version}_windows_arm64.exe" .
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$ldflags" \
+            -o "dist/cwind_${version}_linux_amd64" .
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="$ldflags" \
+            -o "dist/cwind_${version}_linux_arm64" .
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="$ldflags" \
+            -o "dist/cwind_${version}_darwin_amd64" .
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="$ldflags" \
+            -o "dist/cwind_${version}_darwin_arm64" .
+          (cd dist && sha256sum * > checksums.txt)
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/cwind_*
+            dist/checksums.txt
